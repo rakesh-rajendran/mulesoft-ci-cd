@@ -3,24 +3,24 @@ name: Github Actions Workflow; Build and Deploy to Sandbox
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:
-    inputs:
-      mule_app_name:
-        description: 'Custom Mule Application Name'
-        required: false
-        type: string
-      environment:
-        description: 'Target Environment'
-        required: true
-        type: choice
-        options: [Sandbox, dev, staging, prod]
+#   workflow_dispatch:
+#     inputs:
+#       mule_app_name:
+#         description: 'Custom Mule Application Name'
+#         required: false
+#         type: string
+#       environment:
+#         description: 'Target Environment'
+#         required: true
+#         type: choice
+#         options: [Sandbox, dev, staging, prod]
 
 
-env:
-    ANYPOINT_CLIENT_ID: ${{ secrets.CONNECTED_APP_CLIENT_ID }}
-    ANYPOINT_CLIENT_SECRET: ${{ secrets.CONNECTED_APP_CLIENT_SECRET }}
-    ANYPOINT_ORG: 93275de8-c464-40f5-b3d4-b7dee6069b75
-    ANYPOINT_ENV: Sandbox
+# env:
+#     ANYPOINT_CLIENT_ID: ${{ secrets.CONNECTED_APP_CLIENT_ID }}
+#     ANYPOINT_CLIENT_SECRET: ${{ secrets.CONNECTED_APP_CLIENT_SECRET }}
+#     ANYPOINT_ORG: 93275de8-c464-40f5-b3d4-b7dee6069b75
+#     ANYPOINT_ENV: Sandbox
     
 jobs:
   anypoint-cli:
@@ -29,23 +29,23 @@ jobs:
     - name: Checkout this repo
       uses: actions/checkout@v4
     
-    - name: Determine App Name
-      id: app_name
-      run: |
-        if [ "${{ github.event.inputs.mule_app_name }}" != "" ]; then
-        # Use custom name if provided
-        APP_NAME="${{ github.event.inputs.mule_app_name }}"
-        elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-        # Use environment-based name for manual triggers
-        APP_NAME="myapp-${{ github.event.inputs.environment }}"
-        else
-        # Use branch-based name for automatic triggers
-        BRANCH_NAME=${GITHUB_REF#refs/heads/}
-        APP_NAME="myapp-${BRANCH_NAME//\//-}"
-        fi
+    # - name: Determine App Name
+    #   id: app_name
+    #   run: |
+    #     if [ "${{ github.event.inputs.mule_app_name }}" != "" ]; then
+    #     # Use custom name if provided
+    #     APP_NAME="${{ github.event.inputs.mule_app_name }}"
+    #     elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+    #     # Use environment-based name for manual triggers
+    #     APP_NAME="myapp-${{ github.event.inputs.environment }}"
+    #     else
+    #     # Use branch-based name for automatic triggers
+    #     BRANCH_NAME=${GITHUB_REF#refs/heads/}
+    #     APP_NAME="myapp-${BRANCH_NAME//\//-}"
+    #     fi
         
-        echo "app_name=${APP_NAME}" >> $GITHUB_OUTPUT
-        echo "Deploying with app name: ${APP_NAME}"
+    #     echo "app_name=${APP_NAME}" >> $GITHUB_OUTPUT
+    #     echo "Deploying with app name: ${APP_NAME}"
 
     - name: Cache dependencies
       uses: actions/cache@v4
@@ -58,32 +58,40 @@ jobs:
       uses: actions/setup-java@v4
       with:
         distribution: 'zulu'
-        java-version: 17
-    - name: Set up Node JS 16
-      uses: actions/setup-node@v4
-      with:
-        node-version: 16
-    - name: Install Anypoint CLI
+        java-version: 8
+    # - name: Set up Node JS 16
+    #   uses: actions/setup-node@v4
+    #   with:
+    #     node-version: 16
+    # - name: Install Anypoint CLI
+    #   run: |
+    #     npm install -g anypoint-cli-v4
+    # - name: Set up Maven
+    #   uses: stCarolas/setup-maven@v4
+    #   with:
+    #     maven-version: '3.8.8'
+    # - name: Build Mule Application
+    #   run: mvn clean package -DskipTests
+    
+    - name: Publish to Exchange
       run: |
-        npm install -g anypoint-cli-v4
-    - name: Set up Maven
-      uses: stCarolas/setup-maven@v4
-      with:
-        maven-version: '3.8.8'
-    - name: Build Mule Application
-      run: mvn clean package -DskipTests
+        mvn deploy --settings .maven/settings.xml -DskipMunitTests \
+        -Dclient.id="${{ secrets.CONNECTED_APP_CLIENT_ID }}" \
+        -Dclient.secret="${{ secrets.CONNECTED_APP_CLIENT_SECRET }}"
 
-    - name: Authenticate with Anypoint CLI
-      run: |
-        anypoint-cli-v4 config set tokenUrl https://anypoint.mulesoft.com/accounts/api/v2/oauth2/token
-        echo '${{ env.ANYPOINT_CLIENT_SECRET }}' | anypoint-cli-v4 auth login --username "${{ env.ANYPOINT_CLIENT_ID }}" --password-stdin
+    # - name: Deploy to CloudHub
+    #   run: |
+    #     anypoint-cli-v4 --username ${{ env.ANYPOINT_CLIENT_ID }} --password ${{ env.ANYPOINT_CLIENT_SECRET }} --organization ${{ env.ANYPOINT_ORG }} \
+    #     cloudhub deploy target/${{ steps.app_name.outputs.app_name }}.jar \
+    #     --name "${{ steps.app_name.outputs.app_name }}" \
+    #     --environment "${{ env.ANYPOINT_ENV }}" \
+    #     --region "us-east-1" \
+    #     --workers 1 \
+    #     --workerType "Micro" \
+    #     --runtimeVersion "4.9.0"
 
-    - name: Deploy to CloudHub
+    - name: Deploy to CloudHub 2.0
       run: |
-        anypoint-cli-v4 cloudhub deploy target/${{ steps.app_name.outputs.app_name }}.jar \
-        --name "${{ steps.app_name.outputs.app_name }}" \
-        --environment "${{ env.ANYPOINT_ENV }}" \
-        --region "us-east-1" \
-        --workers 1 \
-        --workerType "Micro" \
-        --runtimeVersion "4.9.0"
+        mvn deploy --settings .maven/settings.xml -DskipMunitTests -DmuleDeploy \
+        -Dclient.id="${{ secrets.CONNECTED_APP_CLIENT_ID }}" \
+        -Dclient.secret="${{ secrets.CONNECTED_APP_CLIENT_SECRET }}" 
