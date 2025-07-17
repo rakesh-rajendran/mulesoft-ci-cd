@@ -4,7 +4,7 @@
 
 	<groupId>93275de8-c464-40f5-b3d4-b7dee6069b75</groupId>
 	<artifactId>mulesoft-ci-cd</artifactId>
-	<version>1.0.0</version>
+	<version>1.0.1</version>
 	<packaging>mule-application</packaging>
 
 	<name>mulesoft-ci-cd</name>

@@ -195,31 +195,59 @@ jobs:
             ;;
         esac
 
-    - name: Publish to Exchange
-      run: |
-        echo "📤 Publishing to Anypoint Exchange..."
-        mvn deploy \
-          --settings .maven/settings.xml \
-          -DskipMunitTests \
-          -DattachMuleSources \
-          -Dclient.id="${{ env.ANYPOINT_CLIENT_ID }}" \
-          -Dclient.secret="${{ env.ANYPOINT_CLIENT_SECRET }}"
+    # - name: Publish to Exchange
+    #   run: |
+    #     echo "📤 Publishing to Anypoint Exchange..."
+    #     mvn deploy \
+    #       --settings .maven/settings.xml \
+    #       -DskipMunitTests \
+    #       -DattachMuleSources \
+    #       -Dclient.id="${{ env.ANYPOINT_CLIENT_ID }}" \
+    #       -Dclient.secret="${{ env.ANYPOINT_CLIENT_SECRET }}"
 
-    - name: Deploy to CloudHub 2.0
+    # - name: Deploy to CloudHub 2.0
+    #   run: |
+    #     echo "🚀 Deploying to CloudHub 2.0 (${{ matrix.environment }})..."
+    #     mvn deploy \
+    #       --settings .maven/settings.xml \
+    #       -DskipMunitTests \
+    #       -DmuleDeploy \
+    #       -Dmule.app.name="${{ needs.build-and-test.outputs.app-name }}" \
+    #       -Dmule.environment="${{ env.MULE_ENV }}" \
+    #       -Dmule.target="${{ env.MULE_TARGET }}" \
+    #       -Dmule.replicas="${{ env.MULE_REPLICAS }}" \
+    #       -Dmule.vcores="${{ env.MULE_VCORES }}" \
+    #       -Dclient.id="${{ env.ANYPOINT_CLIENT_ID }}" \
+    #       -Dclient.secret="${{ env.ANYPOINT_CLIENT_SECRET }}"
+
+    - name: Build Application (Skip Exchange)
+      run: |
+        echo "🔨 Building Mule Application..."
+        mvn clean package \
+        --settings .maven/settings.xml \
+        -DskipExchangeDocumentGeneration=true \
+        -DattachMuleSources=false \
+        -DskipMunitTests=${{ github.event.inputs.skip_tests == 'true' && 'true' || 'false' }} \
+        -Dclient.id="${{ env.ANYPOINT_CLIENT_ID }}" \
+        -Dclient.secret="${{ env.ANYPOINT_CLIENT_SECRET }}"
+
+    - name: Deploy to CloudHub 2.0 (Without Exchange)
       run: |
         echo "🚀 Deploying to CloudHub 2.0 (${{ matrix.environment }})..."
         mvn deploy \
-          --settings .maven/settings.xml \
-          -DskipMunitTests \
-          -DmuleDeploy \
-          -Dmule.app.name="${{ needs.build-and-test.outputs.app-name }}" \
-          -Dmule.environment="${{ env.MULE_ENV }}" \
-          -Dmule.target="${{ env.MULE_TARGET }}" \
-          -Dmule.replicas="${{ env.MULE_REPLICAS }}" \
-          -Dmule.vcores="${{ env.MULE_VCORES }}" \
-          -Dclient.id="${{ env.ANYPOINT_CLIENT_ID }}" \
-          -Dclient.secret="${{ env.ANYPOINT_CLIENT_SECRET }}"
-
+        --settings .maven/settings.xml \
+        -DskipMunitTests \
+        -DmuleDeploy \
+        -DskipExchangeDocumentGeneration=true \
+        -DattachMuleSources=false \
+        -Dmule.app.name="${{ needs.build-and-test.outputs.app-name }}" \
+        -Dmule.environment="${{ env.MULE_ENV }}" \
+        -Dmule.target="${{ env.MULE_TARGET }}" \
+        -Dmule.replicas="${{ env.MULE_REPLICAS }}" \
+        -Dmule.vcores="${{ env.MULE_VCORES }}" \
+        -Dclient.id="${{ env.ANYPOINT_CLIENT_ID }}" \
+        -Dclient.secret="${{ env.ANYPOINT_CLIENT_SECRET }}"
+        
     - name: Verify Deployment
       run: |
         echo "✅ Deployment completed successfully!"
