@@ -163,32 +163,32 @@ jobs:
     - name: Set Environment Variables
       run: |
         case "${{ matrix.environment }}" in
-          "Sandbox")
+            "Sandbox")
             echo "MULE_ENV=Sandbox" >> $GITHUB_ENV
             echo "MULE_REGION=us-east-1" >> $GITHUB_ENV
             echo "MULE_WORKERS=1" >> $GITHUB_ENV
-            echo "MULE_WORKER_TYPE=MICRO" >> $GITHUB_ENV
+            echo "MULE_WORKER_SIZE=0.1" >> $GITHUB_ENV
             echo "MULE_VERSION=4.4.0" >> $GITHUB_ENV
             ;;
-          "Development")
+            "Development")
             echo "MULE_ENV=Development" >> $GITHUB_ENV
             echo "MULE_REGION=us-east-1" >> $GITHUB_ENV
             echo "MULE_WORKERS=1" >> $GITHUB_ENV
-            echo "MULE_WORKER_TYPE=MICRO" >> $GITHUB_ENV
+            echo "MULE_WORKER_SIZE=0.1" >> $GITHUB_ENV
             echo "MULE_VERSION=4.4.0" >> $GITHUB_ENV
             ;;
-          "Staging")
+            "Staging")
             echo "MULE_ENV=Staging" >> $GITHUB_ENV
             echo "MULE_REGION=us-east-1" >> $GITHUB_ENV
             echo "MULE_WORKERS=1" >> $GITHUB_ENV
-            echo "MULE_WORKER_TYPE=SMALL" >> $GITHUB_ENV
+            echo "MULE_WORKER_SIZE=0.2" >> $GITHUB_ENV
             echo "MULE_VERSION=4.4.0" >> $GITHUB_ENV
             ;;
-          "Production")
+            "Production")
             echo "MULE_ENV=Production" >> $GITHUB_ENV
             echo "MULE_REGION=us-east-1" >> $GITHUB_ENV
             echo "MULE_WORKERS=2" >> $GITHUB_ENV
-            echo "MULE_WORKER_TYPE=SMALL" >> $GITHUB_ENV
+            echo "MULE_WORKER_SIZE=0.2" >> $GITHUB_ENV
             echo "MULE_VERSION=4.4.0" >> $GITHUB_ENV
             ;;
         esac
@@ -222,19 +222,19 @@ jobs:
         echo "🌍 Region: ${{ env.MULE_REGION }}"
         echo "⚙️ Runtime: ${{ env.MULE_VERSION }}"
         echo "👥 Workers: ${{ env.MULE_WORKERS }}"
-        echo "💾 Worker Type: ${{ env.MULE_WORKER_TYPE }}"
+        echo "💾 Worker Size: ${{ env.MULE_WORKER_SIZE }} vCores"
         
         # Deploy to CloudHub 1.0 using Connected App authentication
         anypoint-cli-v4 runtime-mgr cloudhub-application deploy \
+          "${{ needs.build-and-test.outputs.app-name }}" \
+          "${JAR_FILE}" \
           --environment "${{ env.MULE_ENV }}" \
           --runtime "${{ env.MULE_VERSION }}" \
           --workers ${{ env.MULE_WORKERS }} \
-          --worker-type "${{ env.MULE_WORKER_TYPE }}" \
+          --workerSize ${{ env.MULE_WORKER_SIZE }} \
           --region "${{ env.MULE_REGION }}" \
           --property "env=${{ env.MULE_ENV }}" \
-          --property "app.name=${{ needs.build-and-test.outputs.app-name }}" \
-          "${{ needs.build-and-test.outputs.app-name }}" \
-          "${JAR_FILE}"
+          --property "app.name=${{ needs.build-and-test.outputs.app-name }}"
     - name: Wait for Deployment
       run: |
         echo "⏳ Waiting for deployment to complete..."
