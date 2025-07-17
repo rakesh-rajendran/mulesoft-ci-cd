@@ -225,7 +225,8 @@ jobs:
         echo "💾 Worker Type: ${{ env.MULE_WORKER_TYPE }}"
         
         # Deploy to CloudHub 1.0 using Connected App authentication
-        anypoint-cli-v4 runtime-mgr cloudhub application deploy \
+        anypoint-cli-v4 runtime-mgr application deploy \
+          --target cloudhub \
           --environment "${{ env.MULE_ENV }}" \
           --runtime "${{ env.MULE_VERSION }}" \
           --workers ${{ env.MULE_WORKERS }} \
@@ -234,7 +235,6 @@ jobs:
           --properties "env=${{ env.MULE_ENV }},app.name=${{ needs.build-and-test.outputs.app-name }}" \
           "${{ needs.build-and-test.outputs.app-name }}" \
           "${JAR_FILE}"
-
     - name: Wait for Deployment
       run: |
         echo "⏳ Waiting for deployment to complete..."
@@ -243,8 +243,9 @@ jobs:
     - name: Verify Deployment
       run: |
         echo "🔍 Checking deployment status..."
-        anypoint-cli-v4 runtime-mgr cloudhub application describe \
+        anypoint-cli-v4 runtime-mgr application describe \
           "${{ needs.build-and-test.outputs.app-name }}" \
+          --target cloudhub \
           --environment "${{ env.MULE_ENV }}" || echo "⚠️ Could not verify deployment status"
 
     - name: Get Application Details
