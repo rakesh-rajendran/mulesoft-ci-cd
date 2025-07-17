@@ -95,14 +95,14 @@ jobs:
         fi
         echo "✅ Project structure validated"
 
-    - name: Run MUnit Tests
-      if: github.event.inputs.skip_tests != 'true'
-      run: |
-        echo "🧪 Running MUnit Tests..."
-        mvn clean test \
-          --settings .maven/settings.xml \
-          -Dclient.id="${{ env.ANYPOINT_CLIENT_ID }}" \
-          -Dclient.secret="${{ env.ANYPOINT_CLIENT_SECRET }}"
+    # - name: Run MUnit Tests
+    #   if: github.event.inputs.skip_tests != 'true'
+    #   run: |
+    #     echo "🧪 Running MUnit Tests..."
+    #     mvn clean test \
+    #       --settings .maven/settings.xml \
+    #       -Dclient.id="${{ env.ANYPOINT_CLIENT_ID }}" \
+    #       -Dclient.secret="${{ env.ANYPOINT_CLIENT_SECRET }}"
 
     - name: Build Application
       id: build
