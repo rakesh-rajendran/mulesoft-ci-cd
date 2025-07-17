@@ -58,8 +58,8 @@
 							<clustered>false</clustered>
 							<forwardSslSession>false</forwardSslSession>
 							<!-- <lastMileSecurity>true</lastMileSecurity>
-							<enableMonitoring>true</enableMonitoring> -->
-							<autoRestart>true</autoRestart>
+							<enableMonitoring>true</enableMonitoring>
+							<autoRestart>true</autoRestart> -->
 						</deploymentSettings>
 						<properties>
 							<property>
