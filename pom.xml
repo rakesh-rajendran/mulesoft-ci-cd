@@ -40,7 +40,24 @@
 				<extensions>true</extensions>
 				<configuration>
 					<classifier>mule-application</classifier>
-					<cloudhub2Deployment>
+					<cloudHubDeployment>
+						<uri>https://anypoint.mulesoft.com</uri>
+						<muleVersion>${app.runtime}</muleVersion>
+						<username>${anypoint.username}</username>
+						<password>${anypoint.password}</password>
+						<applicationName>${mule.app.name}</applicationName>
+						<environment>${mule.environment}</environment>
+						<workerType>MICRO</workerType>
+						<region>us-east-2</region>
+						<workers>1</workers>
+						<objectStoreV2>true</objectStoreV2>
+						<!-- Start: SECURED PROPERTIES CI/CD -->
+						<!-- <properties>
+							<secure.key>${decryption.key}</secure.key>
+						</properties> -->
+						<!-- End: SECURED PROPERTIES CI/CD -->
+					</cloudHubDeployment>
+					<!-- <cloudhub2Deployment>
 						<uri>https://anypoint.mulesoft.com</uri>
 						<provider>MC</provider>
 						<environment>${mule.environment}</environment>
@@ -57,9 +74,9 @@
 							<updateStrategy>${mule.update.strategy}</updateStrategy>
 							<clustered>false</clustered>
 							<forwardSslSession>false</forwardSslSession>
-							<!-- <lastMileSecurity>true</lastMileSecurity>
+							<lastMileSecurity>true</lastMileSecurity>
 							<enableMonitoring>true</enableMonitoring>
-							<autoRestart>true</autoRestart> -->
+							<autoRestart>true</autoRestart>
 						</deploymentSettings>
 						<properties>
 							<property>
@@ -71,13 +88,13 @@
 								<value>${mule.app.name}</value>
 							</property>
 						</properties>
-						<!-- <secureProperties>
+						<secureProperties>
 							<secureProperty>
 								<key>secure.key</key>
 								<value>![encrypted_value]</value>
 							</secureProperty>
-						</secureProperties> -->
-					</cloudhub2Deployment>
+						</secureProperties>
+					</cloudhub2Deployment> -->
 				</configuration>
 			</plugin>
 		</plugins>
