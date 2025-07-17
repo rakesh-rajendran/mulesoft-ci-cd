@@ -10,11 +10,20 @@
 	<name>mulesoft-ci-cd</name>
 
 	<properties>
-		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-
-		<app.runtime>4.9.0</app.runtime>
-		<mule.maven.plugin.version>4.3.0</mule.maven.plugin.version>
+		<!-- Mule Runtime Version -->
+		<mule.version>4.4.0</mule.version>
+		<mule.maven.plugin.version>4.1.0</mule.maven.plugin.version>
+		
+		<!-- Default CloudHub 2.0 Configuration -->
+		<mule.environment>Sandbox</mule.environment>
+		<mule.target>Cloudhub-US-East-2</mule.target>
+		<mule.app.name>${project.artifactId}-${mule.environment}</mule.app.name>
+		<mule.replicas>1</mule.replicas>
+		<mule.vcores>0.1</mule.vcores>
+		
+		<!-- Security and Performance Settings -->
+		<mule.enforce.replicas.across.nodes>true</mule.enforce.replicas.across.nodes>
+		<mule.update.strategy>rolling</mule.update.strategy>
 	</properties>
 
 	<build>
@@ -34,16 +43,40 @@
 					<cloudhub2Deployment>
 						<uri>https://anypoint.mulesoft.com</uri>
 						<provider>MC</provider>
-						<environment>Sandbox</environment>
-						<target>Cloudhub-US-East-2</target>
+						<environment>${mule.environment}</environment>
+						<target>${mule.target}</target>
 						<server>Repository</server>
-						<applicationName>${project.artifactId}</applicationName>
+						<applicationName>${mule.app.name}</applicationName>
+						<muleVersion>${mule.version}</muleVersion>
 						<releaseChannel>NONE</releaseChannel>
-						<replicas>1</replicas>
-						<vCores>0.1</vCores>
+						<replicas>${mule.replicas}</replicas>
+						<vCores>${mule.vcores}</vCores>
 						<deploymentSettings>
 							<generateDefaultPublicUrl>true</generateDefaultPublicUrl>
+							<enforceDeployingReplicasAcrossNodes>${mule.enforce.replicas.across.nodes}</enforceDeployingReplicasAcrossNodes>
+							<updateStrategy>${mule.update.strategy}</updateStrategy>
+							<clustered>false</clustered>
+							<forwardSslSession>false</forwardSslSession>
+							<lastMileSecurity>true</lastMileSecurity>
+							<enableMonitoring>true</enableMonitoring>
+							<autoRestart>true</autoRestart>
 						</deploymentSettings>
+						<properties>
+							<property>
+								<key>env</key>
+								<value>${mule.environment}</value>
+							</property>
+							<property>
+								<key>app.name</key>
+								<value>${mule.app.name}</value>
+							</property>
+						</properties>
+						<!-- <secureProperties>
+							<secureProperty>
+								<key>secure.key</key>
+								<value>![encrypted_value]</value>
+							</secureProperty>
+						</secureProperties> -->
 					</cloudhub2Deployment>
 				</configuration>
 			</plugin>
@@ -106,4 +139,42 @@
 			<layout>default</layout>
 		</repository>
 	</distributionManagement>
+
+		<profiles>
+		<!-- Development Profile -->
+		<profile>
+			<id>dev</id>
+			<properties>
+				<mule.environment>Sandbox</mule.environment>
+				<mule.target>Cloudhub-US-East-2</mule.target>
+				<mule.app.name>${project.artifactId}-dev</mule.app.name>
+				<mule.replicas>1</mule.replicas>
+				<mule.vcores>0.1</mule.vcores>
+			</properties>
+		</profile>
+		
+		<!-- Staging Profile -->
+		<profile>
+			<id>staging</id>
+			<properties>
+				<mule.environment>Staging</mule.environment>
+				<mule.target>Cloudhub-US-East-2</mule.target>
+				<mule.app.name>${project.artifactId}-staging</mule.app.name>
+				<mule.replicas>1</mule.replicas>
+				<mule.vcores>0.2</mule.vcores>
+			</properties>
+		</profile>
+		
+		<!-- Production Profile -->
+		<profile>
+			<id>prod</id>
+			<properties>
+				<mule.environment>Production</mule.environment>
+				<mule.target>Cloudhub-US-East-2</mule.target>
+				<mule.app.name>${project.artifactId}-prod</mule.app.name>
+				<mule.replicas>2</mule.replicas>
+				<mule.vcores>0.2</mule.vcores>
+			</properties>
+		</profile>
+	</profiles>
 </project>

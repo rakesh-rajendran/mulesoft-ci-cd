@@ -1,97 +1,247 @@
-name: Github Actions Workflow; Build and Deploy to Sandbox
+name: Build and Deploy Mule Application
 
 on:
   push:
+    branches: [ main, develop ]
+  pull_request:
     branches: [ main ]
-#   workflow_dispatch:
-#     inputs:
-#       mule_app_name:
-#         description: 'Custom Mule Application Name'
-#         required: false
-#         type: string
-#       environment:
-#         description: 'Target Environment'
-#         required: true
-#         type: choice
-#         options: [Sandbox, dev, staging, prod]
+  workflow_dispatch:
+    inputs:
+      mule_app_name:
+        description: 'Custom Mule Application Name (optional)'
+        required: false
+        type: string
+      environment:
+        description: 'Target Environment'
+        required: true
+        type: choice
+        options: [Sandbox, Development, Staging, Production]
+        default: 'Sandbox'
+      skip_tests:
+        description: 'Skip MUnit Tests'
+        required: false
+        type: boolean
+        default: false
 
+env:
+  ANYPOINT_CLIENT_ID: ${{ secrets.CONNECTED_APP_CLIENT_ID }}
+  ANYPOINT_CLIENT_SECRET: ${{ secrets.CONNECTED_APP_CLIENT_SECRET }}
+  ANYPOINT_ORG_ID: ${{ secrets.ANYPOINT_ORG_ID }}
+  MAVEN_OPTS: "-Xmx1024m"
 
-# env:
-#     ANYPOINT_CLIENT_ID: ${{ secrets.CONNECTED_APP_CLIENT_ID }}
-#     ANYPOINT_CLIENT_SECRET: ${{ secrets.CONNECTED_APP_CLIENT_SECRET }}
-#     ANYPOINT_ORG: 93275de8-c464-40f5-b3d4-b7dee6069b75
-#     ANYPOINT_ENV: Sandbox
-    
 jobs:
-  anypoint-cli:
+  # Build and Test Job
+  build-and-test:
     runs-on: ubuntu-latest
-    steps:
-    - name: Checkout this repo
-      uses: actions/checkout@v4
+    outputs:
+      app-name: ${{ steps.app_name.outputs.app_name }}
+      artifact-name: ${{ steps.build.outputs.artifact_name }}
     
-    # - name: Determine App Name
-    #   id: app_name
-    #   run: |
-    #     if [ "${{ github.event.inputs.mule_app_name }}" != "" ]; then
-    #     # Use custom name if provided
-    #     APP_NAME="${{ github.event.inputs.mule_app_name }}"
-    #     elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-    #     # Use environment-based name for manual triggers
-    #     APP_NAME="myapp-${{ github.event.inputs.environment }}"
-    #     else
-    #     # Use branch-based name for automatic triggers
-    #     BRANCH_NAME=${GITHUB_REF#refs/heads/}
-    #     APP_NAME="myapp-${BRANCH_NAME//\//-}"
-    #     fi
-        
-    #     echo "app_name=${APP_NAME}" >> $GITHUB_OUTPUT
-    #     echo "Deploying with app name: ${APP_NAME}"
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for better caching
 
-    - name: Cache dependencies
+    - name: Set up JDK 8
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '8'
+
+    - name: Cache Maven Dependencies
       uses: actions/cache@v4
       with:
         path: ~/.m2/repository
         key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
         restore-keys: |
           ${{ runner.os }}-maven-
-    - name: Set up JDK
+
+    - name: Determine Application Name
+      id: app_name
+      run: |
+        if [ "${{ github.event.inputs.mule_app_name }}" != "" ]; then
+          # Use custom name if provided via workflow dispatch
+          APP_NAME="${{ github.event.inputs.mule_app_name }}"
+        elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          # Use environment-based name for manual triggers
+          ENV_LOWER=$(echo "${{ github.event.inputs.environment }}" | tr '[:upper:]' '[:lower:]')
+          APP_NAME="${{ github.event.repository.name }}-${ENV_LOWER}"
+        elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          # Production-ready name for main branch
+          APP_NAME="${{ github.event.repository.name }}-prod"
+        else
+          # Branch-based name for feature branches
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          SANITIZED_BRANCH=${BRANCH_NAME//[^a-zA-Z0-9]/-}
+          APP_NAME="${{ github.event.repository.name }}-${SANITIZED_BRANCH}"
+        fi
+        
+        # Ensure app name meets CloudHub requirements (lowercase, max 42 chars)
+        APP_NAME=$(echo "${APP_NAME}" | tr '[:upper:]' '[:lower:]' | cut -c1-42)
+        
+        echo "app_name=${APP_NAME}" >> $GITHUB_OUTPUT
+        echo "🚀 Application Name: ${APP_NAME}"
+
+    - name: Validate Project Structure
+      run: |
+        if [ ! -f "pom.xml" ]; then
+          echo "❌ pom.xml not found"
+          exit 1
+        fi
+        if [ ! -d "src/main/mule" ]; then
+          echo "❌ Mule source directory not found"
+          exit 1
+        fi
+        echo "✅ Project structure validated"
+
+    - name: Run MUnit Tests
+      if: github.event.inputs.skip_tests != 'true'
+      run: |
+        echo "🧪 Running MUnit Tests..."
+        mvn clean test \
+          --settings .maven/settings.xml \
+          -Dclient.id="${{ env.ANYPOINT_CLIENT_ID }}" \
+          -Dclient.secret="${{ env.ANYPOINT_CLIENT_SECRET }}"
+
+    - name: Build Application
+      id: build
+      run: |
+        echo "🔨 Building Mule Application..."
+        mvn clean package \
+          --settings .maven/settings.xml \
+          -DskipMunitTests=${{ github.event.inputs.skip_tests == 'true' && 'true' || 'false' }} \
+          -Dclient.id="${{ env.ANYPOINT_CLIENT_ID }}" \
+          -Dclient.secret="${{ env.ANYPOINT_CLIENT_SECRET }}"
+        
+        # Find the generated JAR file
+        ARTIFACT_NAME=$(find target -name "*.jar" -not -name "*-mule-application.jar" | head -1 | xargs basename)
+        echo "artifact_name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
+        echo "📦 Built artifact: ${ARTIFACT_NAME}"
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: mule-application-${{ github.run_number }}
+        path: |
+          target/*.jar
+          pom.xml
+        retention-days: 30
+
+  # Deploy Job
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    
+    strategy:
+      matrix:
+        include:
+          - environment: ${{ github.event.inputs.environment || 'Sandbox' }}
+    
+    environment: 
+      name: ${{ matrix.environment }}
+      url: https://anypoint.mulesoft.com/cloudhub/#!/applications/${{ needs.build-and-test.outputs.app-name }}
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 8
       uses: actions/setup-java@v4
       with:
         distribution: 'zulu'
-        java-version: 8
-    # - name: Set up Node JS 16
-    #   uses: actions/setup-node@v4
-    #   with:
-    #     node-version: 16
-    # - name: Install Anypoint CLI
-    #   run: |
-    #     npm install -g anypoint-cli-v4
-    # - name: Set up Maven
-    #   uses: stCarolas/setup-maven@v4
-    #   with:
-    #     maven-version: '3.8.8'
-    # - name: Build Mule Application
-    #   run: mvn clean package -DskipTests
-    
+        java-version: '8'
+
+    - name: Cache Maven Dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
+
+    - name: Download Build Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: mule-application-${{ github.run_number }}
+
+    - name: Set Environment Variables
+      run: |
+        case "${{ matrix.environment }}" in
+          "Sandbox")
+            echo "MULE_ENV=Sandbox" >> $GITHUB_ENV
+            echo "MULE_TARGET=Cloudhub-US-East-2" >> $GITHUB_ENV
+            echo "MULE_REPLICAS=1" >> $GITHUB_ENV
+            echo "MULE_VCORES=0.1" >> $GITHUB_ENV
+            ;;
+          "Development")
+            echo "MULE_ENV=Development" >> $GITHUB_ENV
+            echo "MULE_TARGET=Cloudhub-US-East-2" >> $GITHUB_ENV
+            echo "MULE_REPLICAS=1" >> $GITHUB_ENV
+            echo "MULE_VCORES=0.1" >> $GITHUB_ENV
+            ;;
+          "Staging")
+            echo "MULE_ENV=Staging" >> $GITHUB_ENV
+            echo "MULE_TARGET=Cloudhub-US-East-2" >> $GITHUB_ENV
+            echo "MULE_REPLICAS=1" >> $GITHUB_ENV
+            echo "MULE_VCORES=0.2" >> $GITHUB_ENV
+            ;;
+          "Production")
+            echo "MULE_ENV=Production" >> $GITHUB_ENV
+            echo "MULE_TARGET=Cloudhub-US-East-2" >> $GITHUB_ENV
+            echo "MULE_REPLICAS=2" >> $GITHUB_ENV
+            echo "MULE_VCORES=0.2" >> $GITHUB_ENV
+            ;;
+        esac
+
     - name: Publish to Exchange
       run: |
-        mvn deploy --settings .maven/settings.xml -DskipMunitTests \
-        -Dclient.id="${{ secrets.CONNECTED_APP_CLIENT_ID }}" \
-        -Dclient.secret="${{ secrets.CONNECTED_APP_CLIENT_SECRET }}"
-
-    # - name: Deploy to CloudHub
-    #   run: |
-    #     anypoint-cli-v4 --username ${{ env.ANYPOINT_CLIENT_ID }} --password ${{ env.ANYPOINT_CLIENT_SECRET }} --organization ${{ env.ANYPOINT_ORG }} \
-    #     cloudhub deploy target/${{ steps.app_name.outputs.app_name }}.jar \
-    #     --name "${{ steps.app_name.outputs.app_name }}" \
-    #     --environment "${{ env.ANYPOINT_ENV }}" \
-    #     --region "us-east-1" \
-    #     --workers 1 \
-    #     --workerType "Micro" \
-    #     --runtimeVersion "4.9.0"
+        echo "📤 Publishing to Anypoint Exchange..."
+        mvn deploy \
+          --settings .maven/settings.xml \
+          -DskipMunitTests \
+          -DattachMuleSources \
+          -Dclient.id="${{ env.ANYPOINT_CLIENT_ID }}" \
+          -Dclient.secret="${{ env.ANYPOINT_CLIENT_SECRET }}"
 
     - name: Deploy to CloudHub 2.0
       run: |
-        mvn deploy --settings .maven/settings.xml -DskipMunitTests -DmuleDeploy \
-        -Dclient.id="${{ secrets.CONNECTED_APP_CLIENT_ID }}" \
-        -Dclient.secret="${{ secrets.CONNECTED_APP_CLIENT_SECRET }}" 
+        echo "🚀 Deploying to CloudHub 2.0 (${{ matrix.environment }})..."
+        mvn deploy \
+          --settings .maven/settings.xml \
+          -DskipMunitTests \
+          -DmuleDeploy \
+          -Dmule.app.name="${{ needs.build-and-test.outputs.app-name }}" \
+          -Dmule.environment="${{ env.MULE_ENV }}" \
+          -Dmule.target="${{ env.MULE_TARGET }}" \
+          -Dmule.replicas="${{ env.MULE_REPLICAS }}" \
+          -Dmule.vcores="${{ env.MULE_VCORES }}" \
+          -Dclient.id="${{ env.ANYPOINT_CLIENT_ID }}" \
+          -Dclient.secret="${{ env.ANYPOINT_CLIENT_SECRET }}"
+
+    - name: Verify Deployment
+      run: |
+        echo "✅ Deployment completed successfully!"
+        echo "Application: ${{ needs.build-and-test.outputs.app-name }}"
+        echo "Environment: ${{ matrix.environment }}"
+        echo "CloudHub URL: https://anypoint.mulesoft.com/cloudhub/#!/applications/${{ needs.build-and-test.outputs.app-name }}"
+
+  # Notification Job
+  notify:
+    needs: [build-and-test, deploy]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Notify Success
+      if: needs.deploy.result == 'success'
+      run: |
+        echo "🎉 Deployment successful!"
+        echo "App: ${{ needs.build-and-test.outputs.app-name }}"
+        
+    - name: Notify Failure
+      if: needs.deploy.result == 'failure' || needs.build-and-test.result == 'failure'
+      run: |
+        echo "❌ Deployment failed!"
+        exit 1
