@@ -2,7 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
-	<groupId>93275de8-c464-40f5-b3d4-b7dee6069b75</groupId>
+	<groupId>gov.dol.ui</groupId>
 	<artifactId>mulesoft-ci-cd</artifactId>
 	<version>1.0.1</version>
 	<packaging>mule-application</packaging>
@@ -10,20 +10,12 @@
 	<name>mulesoft-ci-cd</name>
 
 	<properties>
-		<!-- Mule Runtime Version -->
-		<mule.version>4.4.0</mule.version>
-		<mule.maven.plugin.version>4.1.0</mule.maven.plugin.version>
-		
-		<!-- Default CloudHub 2.0 Configuration -->
-		<mule.environment>Sandbox</mule.environment>
-		<mule.target>Cloudhub-US-East-2</mule.target>
-		<mule.app.name>${project.artifactId}-${mule.environment}</mule.app.name>
-		<mule.replicas>1</mule.replicas>
-		<mule.vcores>0.1</mule.vcores>
-		
-		<!-- Security and Performance Settings -->
-		<mule.enforce.replicas.across.nodes>true</mule.enforce.replicas.across.nodes>
-		<mule.update.strategy>rolling</mule.update.strategy>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+		<app.runtime>4.9.6</app.runtime>
+		<mule.maven.plugin.version>4.3.0</mule.maven.plugin.version>
+		<munit.version>3.4.0</munit.version>
 	</properties>
 
 	<build>
@@ -38,63 +30,28 @@
 				<artifactId>mule-maven-plugin</artifactId>
 				<version>${mule.maven.plugin.version}</version>
 				<extensions>true</extensions>
+			</plugin>
+			<plugin>
+				<groupId>com.mulesoft.munit.tools</groupId>
+				<artifactId>munit-maven-plugin</artifactId>
+				<version>${munit.version}</version>
+				<executions>
+					<execution>
+						<id>test</id>
+						<phase>test</phase>
+						<goals>
+							<goal>test</goal>
+							<goal>coverage-report</goal>
+						</goals>
+					</execution>
+				</executions>
 				<configuration>
-					<classifier>mule-application</classifier>
-					<cloudHubDeployment>
-						<uri>https://anypoint.mulesoft.com</uri>
-						<muleVersion>${app.runtime}</muleVersion>
-						<username>${anypoint.username}</username>
-						<password>${anypoint.password}</password>
-						<applicationName>${mule.app.name}</applicationName>
-						<environment>${mule.environment}</environment>
-						<workerType>MICRO</workerType>
-						<region>us-east-2</region>
-						<workers>1</workers>
-						<objectStoreV2>true</objectStoreV2>
-						<!-- Start: SECURED PROPERTIES CI/CD -->
-						<!-- <properties>
-							<secure.key>${decryption.key}</secure.key>
-						</properties> -->
-						<!-- End: SECURED PROPERTIES CI/CD -->
-					</cloudHubDeployment>
-					<!-- <cloudhub2Deployment>
-						<uri>https://anypoint.mulesoft.com</uri>
-						<provider>MC</provider>
-						<environment>${mule.environment}</environment>
-						<target>${mule.target}</target>
-						<server>Repository</server>
-						<applicationName>${mule.app.name}</applicationName>
-						<muleVersion>${mule.version}</muleVersion>
-						<releaseChannel>NONE</releaseChannel>
-						<replicas>${mule.replicas}</replicas>
-						<vCores>${mule.vcores}</vCores>
-						<deploymentSettings>
-							<generateDefaultPublicUrl>true</generateDefaultPublicUrl>
-							<enforceDeployingReplicasAcrossNodes>${mule.enforce.replicas.across.nodes}</enforceDeployingReplicasAcrossNodes>
-							<updateStrategy>${mule.update.strategy}</updateStrategy>
-							<clustered>false</clustered>
-							<forwardSslSession>false</forwardSslSession>
-							<lastMileSecurity>true</lastMileSecurity>
-							<enableMonitoring>true</enableMonitoring>
-							<autoRestart>true</autoRestart>
-						</deploymentSettings>
-						<properties>
-							<property>
-								<key>env</key>
-								<value>${mule.environment}</value>
-							</property>
-							<property>
-								<key>app.name</key>
-								<value>${mule.app.name}</value>
-							</property>
-						</properties>
-						<secureProperties>
-							<secureProperty>
-								<key>secure.key</key>
-								<value>![encrypted_value]</value>
-							</secureProperty>
-						</secureProperties>
-					</cloudhub2Deployment> -->
+					<coverage>
+						<runCoverage>true</runCoverage>
+						<formats>
+							<format>html</format>
+						</formats>
+					</coverage>
 				</configuration>
 			</plugin>
 		</plugins>
@@ -117,21 +74,15 @@
 
 	<repositories>
 		<repository>
-			<id>anypoint-exchange-v3</id>
+			<id>anypoint-exchange-v2</id>
 			<name>Anypoint Exchange</name>
-			<url>https://maven.anypoint.mulesoft.com/api/v3/maven</url>
+			<url>https://maven.gov.anypoint.mulesoft.com/api/v2/maven</url>
 			<layout>default</layout>
 		</repository>
 		<repository>
 			<id>mulesoft-releases</id>
 			<name>MuleSoft Releases Repository</name>
 			<url>https://repository.mulesoft.org/releases/</url>
-			<layout>default</layout>
-		</repository>
-		<repository>
-			<id>Repository</id>
-			<name>Private Exchange repository</name>
-			<url>https://maven.anypoint.mulesoft.com/api/v3/organizations/${project.groupId}/maven</url>
 			<layout>default</layout>
 		</repository>
 	</repositories>
@@ -148,50 +99,13 @@
 		</pluginRepository>
 	</pluginRepositories>
 
-	<distributionManagement>
+	<!-- <distributionManagement>
 		<repository>
 			<id>Repository</id>
 			<name>Corporate Repository</name>
 			<url>https://maven.anypoint.mulesoft.com/api/v3/organizations/${project.groupId}/maven</url>
 			<layout>default</layout>
 		</repository>
-	</distributionManagement>
+	</distributionManagement> -->
 
-		<profiles>
-		<!-- Development Profile -->
-		<profile>
-			<id>dev</id>
-			<properties>
-				<mule.environment>Sandbox</mule.environment>
-				<mule.target>Cloudhub-US-East-2</mule.target>
-				<mule.app.name>${project.artifactId}-dev</mule.app.name>
-				<mule.replicas>1</mule.replicas>
-				<mule.vcores>0.1</mule.vcores>
-			</properties>
-		</profile>
-		
-		<!-- Staging Profile -->
-		<profile>
-			<id>staging</id>
-			<properties>
-				<mule.environment>Staging</mule.environment>
-				<mule.target>Cloudhub-US-East-2</mule.target>
-				<mule.app.name>${project.artifactId}-staging</mule.app.name>
-				<mule.replicas>1</mule.replicas>
-				<mule.vcores>0.2</mule.vcores>
-			</properties>
-		</profile>
-		
-		<!-- Production Profile -->
-		<profile>
-			<id>prod</id>
-			<properties>
-				<mule.environment>Production</mule.environment>
-				<mule.target>Cloudhub-US-East-2</mule.target>
-				<mule.app.name>${project.artifactId}-prod</mule.app.name>
-				<mule.replicas>2</mule.replicas>
-				<mule.vcores>0.2</mule.vcores>
-			</properties>
-		</profile>
-	</profiles>
 </project>
