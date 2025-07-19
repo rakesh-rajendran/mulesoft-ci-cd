@@ -18,6 +18,7 @@
 		<http.version>1.7.3</http.version>
 		<socket.version>1.2.2</socket.version>
 		<secure.config.module.version>1.2.5</secure.config.module.version>
+		<java.version>17</java.version>
 	</properties>
 
 	<build>
@@ -42,7 +43,8 @@
 						<server>Repository</server>
 						<applicationName>${project.artifactId}</applicationName>
 						<muleVersion>${app.runtime}</muleVersion>
-						<releaseChannel>NONE</releaseChannel>
+						<javaVersion>${java.version}</javaVersion>
+						<releaseChannel>EDGE</releaseChannel>
 						<replicas>1</replicas>
 						<vCores>0.1</vCores>
 						<deploymentSettings>
