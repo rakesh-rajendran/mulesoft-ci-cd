@@ -1,300 +1,45 @@
-name: Build and Deploy Mule Application to On-Premise
-
+name: Publish the artifact to Exchange
 on:
   push:
-    branches: [ main, develop ]
-  pull_request:
     branches: [ main ]
-  workflow_dispatch:
-    inputs:
-      mule_app_name:
-        description: 'Custom Mule Application Name (optional)'
-        required: false
-        type: string
-      environment:
-        description: 'Target Environment'
-        required: true
-        type: choice
-        options: [dev, test, prod]
-        default: 'dev'
-      skip_tests:
-        description: 'Skip MUnit Tests'
-        required: false
-        type: boolean
-        default: false
-
-env:
-  ANYPOINT_CLIENT_ID: ${{ secrets.ANYPOINT_CLIENT_ID }}
-  ANYPOINT_CLIENT_SECRET: ${{ secrets.ANYPOINT_CLIENT_SECRET }}
-  MAVEN_OPTS: "-Xmx1024m"
-
-permissions:
-  contents: read
 
 jobs:
-  # Build and Test Job
-  build-and-test:
+  build:
     runs-on: ubuntu-latest
-    outputs:
-      app-name: ${{ steps.app_name.outputs.app_name }}
-      artifact-name: ${{ steps.build.outputs.artifact_name }}
-    
+
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Setup Java
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'corretto'
-        java-version: '17'
-
-    - name: Cache Maven Dependencies
-      uses: actions/cache@v4
-      with:
-        path: ~/.m2
-        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-        restore-keys: ${{ runner.os }}-m2
-
-    - name: Determine Application Name
-      id: app_name
-      run: |
-        if [ "${{ github.event.inputs.mule_app_name }}" != "" ]; then
-          # Use custom name if provided via workflow dispatch
-          APP_NAME="${{ github.event.inputs.mule_app_name }}"
-        elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-          # Use environment-based name for manual triggers
-          ENV_LOWER=$(echo "${{ github.event.inputs.environment }}" | tr '[:upper:]' '[:lower:]')
-          APP_NAME="${{ github.event.repository.name }}-${ENV_LOWER}"
-        elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
-          # Production-ready name for main branch
-          APP_NAME="${{ github.event.repository.name }}-prod"
-        else
-          # Branch-based name for feature branches
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          SANITIZED_BRANCH=${BRANCH_NAME//[^a-zA-Z0-9]/-}
-          APP_NAME="${{ github.event.repository.name }}-${SANITIZED_BRANCH}"
-        fi
-        
-        # Ensure app name meets requirements (lowercase, max 42 chars)
-        APP_NAME=$(echo "${APP_NAME}" | tr '[:upper:]' '[:lower:]' | cut -c1-42)
-        
-        echo "app_name=${APP_NAME}" >> $GITHUB_OUTPUT
-        echo "🚀 Application Name: ${APP_NAME}"
-
-    - name: Validate Project Structure
-      run: |
-        if [ ! -f "pom.xml" ]; then
-          echo "❌ pom.xml not found"
-          exit 1
-        fi
-        if [ ! -d "src/main/mule" ]; then
-          echo "❌ Mule source directory not found"
-          exit 1
-        fi
-        echo "✅ Project structure validated"
-
-    - name: Run MUnit Tests
-      if: github.event.inputs.skip_tests != 'true'
-      run: |
-        echo "🧪 Running MUnit Tests..."
-        mvn clean test -Denv=${{ github.event.inputs.environment || 'dev' }}
-      env:
-        ANYPOINT_CLIENT_ID: ${{ env.ANYPOINT_CLIENT_ID }}
-        ANYPOINT_CLIENT_SECRET: ${{ env.ANYPOINT_CLIENT_SECRET }}
-
-    - name: Build Application
-      id: build
-      run: |
-        echo "🔨 Building Mule Application for ${{ github.event.inputs.environment || 'dev' }}"
-        mvn clean package \
-          -DskipMunitTests=${{ github.event.inputs.skip_tests == 'true' && 'true' || 'false' }} \
-          -Denv=${{ github.event.inputs.environment || 'dev' }}
-        
-        # Find the generated JAR file
-        ARTIFACT_NAME=$(find target -name "*-mule-application.jar" | head -1 | xargs basename)
-        echo "artifact_name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
-        echo "📦 Built artifact: ${ARTIFACT_NAME}"
-      env:
-        ANYPOINT_CLIENT_ID: ${{ env.ANYPOINT_CLIENT_ID }}
-        ANYPOINT_CLIENT_SECRET: ${{ env.ANYPOINT_CLIENT_SECRET }}
-
-    - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: mule-application-${{ github.run_number }}
-        path: |
-          target/*-mule-application.jar
-          pom.xml
-        retention-days: 30
-
-  # Deploy Job
-  deploy:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
-    environment: ${{ github.event.inputs.environment || 'dev' }}
-    outputs:
-      result: ${{ steps.deploy.outputs.result }}
-    
-    steps:
-    - name: Checkout Repository
+    - name: Checkout this repo
       uses: actions/checkout@v4
 
-    - name: Setup Java
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'corretto'
-        java-version: '17'
-
-    - name: Cache Maven Dependencies
+    - name: Cache dependencies
       uses: actions/cache@v4
       with:
-        path: ~/.m2
-        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-        restore-keys: ${{ runner.os }}-m2
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-maven-
 
-    - name: Download Build Artifacts
-      uses: actions/download-artifact@v4
+    - name: Set up JDK 1.8
+      uses: actions/setup-java@v4
       with:
-        name: mule-application-${{ github.run_number }}
-
-    - name: Set Environment Variables
-      run: |
-        case "${{ github.event.inputs.environment || 'dev' }}" in
-            "dev")
-            echo "MULE_ENV=dev" >> $GITHUB_ENV
-            echo "MULE_VERSION=4.4.0" >> $GITHUB_ENV
-            ;;
-            "test")
-            echo "MULE_ENV=test" >> $GITHUB_ENV
-            echo "MULE_VERSION=4.4.0" >> $GITHUB_ENV
-            ;;
-            "prod")
-            echo "MULE_ENV=prod" >> $GITHUB_ENV
-            echo "MULE_VERSION=4.4.0" >> $GITHUB_ENV
-            ;;
-        esac
-
-    - name: Install Anypoint CLI
-      run: |
-        echo "📦 Installing Anypoint CLI v4..."
-        npm install -g anypoint-cli-v4
-        anypoint-cli-v4 --version
-
-    - name: Authenticate with Connected App
-      run: |
-        echo "🔐 Authenticating with Connected App..."
-        anypoint-cli-v4 conf client_id ${{ env.ANYPOINT_CLIENT_ID }}
-        anypoint-cli-v4 conf client_secret ${{ env.ANYPOINT_CLIENT_SECRET }}
-      env:
-        ANYPOINT_CLIENT_ID: ${{ env.ANYPOINT_CLIENT_ID }}
-        ANYPOINT_CLIENT_SECRET: ${{ env.ANYPOINT_CLIENT_SECRET }}
-
-    - name: Verify Authentication
-      run: |
-        echo "✅ Verifying authentication..."
-        anypoint-cli-v4 account business-group list || echo "⚠️ Authentication verification failed"
-
-    - name: Debug - Check Server Groups
-      run: |
-        echo "🔍 Checking available server groups..."
-        anypoint-cli-v4 runtime-mgr server-group list --environment "${{ env.MULE_ENV }}" || echo "⚠️ Cannot list server groups"
-
-    - name: Deploy to On-Premise
-      id: deploy
-      run: |
-        echo "🚀 Deploying to On-Premise (${{ github.event.inputs.environment || 'dev' }})..."
-        
-        # Find the JAR file
-        JAR_FILE=$(find . -name "*-mule-application.jar" | head -1)
-        if [ ! -f "${JAR_FILE}" ]; then
-          echo "❌ JAR file not found: ${JAR_FILE}"
-          ls -la target/ || echo "Target directory not found"
-          ls -la . || echo "Current directory listing failed"
-          exit 1
-        fi
-        
-        echo "📦 JAR File: ${JAR_FILE}"
-        echo "🎯 Environment: ${{ env.MULE_ENV }}"
-        echo "🖥️ Server Group: ${{ secrets.MULE_SERVER_GROUP }}"
-        echo "⚙️ Runtime: ${{ env.MULE_VERSION }}"
-        echo "📱 Application: ${{ needs.build-and-test.outputs.app-name }}"
-        
-        # Deploy to On-Premise using Connected App authentication
-        anypoint-cli-v4 runtime-mgr standalone-application deploy \
-          --environment "${{ env.MULE_ENV }}" \
-          --target "${{ secrets.MULE_SERVER_GROUP }}" \
-          --property "env=${{ env.MULE_ENV }}" \
-          --property "app.name=${{ needs.build-and-test.outputs.app-name }}" \
-          "${{ needs.build-and-test.outputs.app-name }}" \
-          "${JAR_FILE}" || (echo "❌ Deployment failed" && exit 1)
-        
-        echo "✅ Application deployed successfully to ${{ env.MULE_ENV }}"
-        echo "result=success" >> $GITHUB_OUTPUT
-      env:
-        ANYPOINT_CLIENT_ID: ${{ env.ANYPOINT_CLIENT_ID }}
-        ANYPOINT_CLIENT_SECRET: ${{ env.ANYPOINT_CLIENT_SECRET }}
-
-    - name: Wait for Deployment
-      run: |
-        echo "⏳ Waiting for deployment to complete..."
-        sleep 30
-
-    - name: Verify Deployment
-      run: |
-        echo "🔍 Checking deployment status..."
-        anypoint-cli-v4 runtime-mgr standalone-application describe \
-          "${{ needs.build-and-test.outputs.app-name }}" \
-          --environment "${{ env.MULE_ENV }}" || echo "⚠️ Could not verify deployment status"
-
-    - name: Generate Deployment Report
-      if: always()
-      run: |
-        echo "## On-Premise Deployment Results" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Deployment Summary" >> $GITHUB_STEP_SUMMARY
-        echo "- **Status**: ${{ steps.deploy.outputs.result || 'Failed' }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Application**: ${{ needs.build-and-test.outputs.app-name }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Environment**: ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Target**: ${{ secrets.MULE_SERVER_GROUP }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Runtime**: ${{ env.MULE_VERSION }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Application URLs" >> $GITHUB_STEP_SUMMARY
-        echo "- **Runtime Manager**: https://anypoint.mulesoft.com/runtime-manager/applications/${{ needs.build-and-test.outputs.app-name }}" >> $GITHUB_STEP_SUMMARY
-
-  # Notification Job
-  notify:
-    needs: [build-and-test, deploy]
-    runs-on: ubuntu-latest
-    if: always()
+        distribution: "zulu"
+        java-version: 8
     
-    steps:
-    - name: Notify Success
-      if: needs.deploy.result == 'success'
+    - name: Publish to Exchange
       run: |
-        echo "🎉 On-Premise deployment successful!"
-        echo "App: ${{ needs.build-and-test.outputs.app-name }}"
-        echo "Environment: ${{ github.event.inputs.environment || 'dev' }}"
-        
-    - name: Notify Failure
-      if: needs.deploy.result == 'failure' || needs.build-and-test.result == 'failure'
-      run: |
-        echo "❌ Deployment failed!"
-        echo "Check the logs above for details"
-        exit 1
-
-  # Cleanup Job (Optional)
-  cleanup:
-    needs: [build-and-test, deploy]
-    runs-on: ubuntu-latest
-    if: always() && github.event_name == 'pull_request'
+        mvn deploy --settings .maven/settings.xml -DskipMunitTests \
+        -Dclient.id="${{ secrets.CONNECTED_APP_CLIENT_ID }}" \
+        -Dclient.secret="${{ secrets.CONNECTED_APP_CLIENT_SECRET }}"
     
-    steps:
-    - name: Cleanup PR Deployment
+    - name: Stamp artifact file name with commit hash
       run: |
-        echo "🧹 Cleaning up PR deployment artifacts..."
-        echo "Artifacts will be automatically cleaned up after retention period"
+        artifactName1=$(ls target/*.jar | head -1)
+        commitHash=$(git rev-parse --short "$GITHUB_SHA")
+        artifactName2=$(ls target/*.jar | head -1 | sed "s/.jar/-$commitHash.jar/g")
+        mv $artifactName1 $artifactName2
+
+    - name: Deploy to CloudHub 2.0
+      run: |
+        mvn deploy --settings .maven/settings.xml -DskipMunitTests -DmuleDeploy \
+        -Dclient.id="${{ secrets.CONNECTED_APP_CLIENT_ID }}" \
+        -Dclient.secret="${{ secrets.CONNECTED_APP_CLIENT_SECRET }}" 
+
