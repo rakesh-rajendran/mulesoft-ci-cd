@@ -28,18 +28,26 @@ jobs:
         java-version: 8
     
     - name: Build and Test
-      run: mvn clean compile test
-    
+      run: mvn clean compile test package
+      
     - name: Stamp artifact file name with commit hash
       id: artifact
       run: |
-        artifactName1=$(ls target/*.jar | head -1)
-        commitHash=$(git rev-parse --short "$GITHUB_SHA")
-        artifactName2=$(ls target/*.jar | head -1 | sed "s/.jar/-$commitHash.jar/g")
-        mv $artifactName1 $artifactName2
-        artifactName=$(basename $artifactName2)
-        echo "name=$artifactName" >> $GITHUB_OUTPUT
-        echo "hash=$commitHash" >> $GITHUB_OUTPUT
+        # Check if JAR file exists first
+        if ls target/*.jar 1> /dev/null 2>&1; then
+          artifactName1=$(ls target/*.jar | head -1)
+          commitHash=$(git rev-parse --short "$GITHUB_SHA")
+          artifactName2=$(echo $artifactName1 | sed "s/.jar/-$commitHash.jar/g")
+          mv $artifactName1 $artifactName2
+          artifactName=$(basename $artifactName2)
+          echo "name=$artifactName" >> $GITHUB_OUTPUT
+          echo "hash=$commitHash" >> $GITHUB_OUTPUT
+          echo "Artifact created: $artifactName"
+        else
+          echo "Error: No JAR file found in target directory"
+          ls -la target/
+          exit 1
+        fi
 
     - name: Upload artifact for reuse
       uses: actions/upload-artifact@v4
