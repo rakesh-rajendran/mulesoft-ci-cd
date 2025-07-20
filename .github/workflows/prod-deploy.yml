@@ -21,11 +21,19 @@ jobs:
         distribution: "zulu"
         java-version: 8
 
-    - name: Download artifact from original build
-      uses: actions/download-artifact@v4
-      with:
-        name: mule-app-${{ github.event.pull_request.head.sha }}
-        path: target/
+    - name: Download artifact from Exchange
+      run: |
+        # Get the commit hash to identify the artifact
+        commitHash=$(git rev-parse --short "${{ github.event.pull_request.head.sha }}")
+        echo "Looking for artifact with commit hash: $commitHash"
+        
+        # Download from Exchange using Maven
+        mvn dependency:copy \
+        -Dartifact=${{ secrets.GROUP_ID }}:${{ github.event.repository.name }}:${{ github.event.pull_request.head.ref }} \
+        -DoutputDirectory=target \
+        --settings .maven/settings.xml \
+        -Dclient.id="${{ secrets.CONNECTED_APP_CLIENT_ID }}" \
+        -Dclient.secret="${{ secrets.CONNECTED_APP_CLIENT_SECRET }}"
 
     - name: Deploy to CloudHub PROD
       run: |
