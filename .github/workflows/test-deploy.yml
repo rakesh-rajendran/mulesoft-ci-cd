@@ -1,0 +1,35 @@
+name: Deploy to TEST
+on:
+  pull_request:
+    branches: [ test ]
+    types: [ opened, synchronize, reopened ]
+
+jobs:
+  deploy-test:
+    runs-on: ubuntu-latest
+    environment: test
+    
+    steps:
+    - name: Checkout this repo
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+
+    - name: Set up JDK 1.8
+      uses: actions/setup-java@v4
+      with:
+        distribution: "zulu"
+        java-version: 8
+
+    - name: Download artifact from DEV build
+      uses: actions/download-artifact@v4
+      with:
+        name: mule-app-${{ github.event.pull_request.head.sha }}
+        path: target/
+
+    - name: Deploy to CloudHub TEST
+      run: |
+        mvn deploy --settings .maven/settings.xml -DskipMunitTests -DmuleDeploy \
+        -Dclient.id="${{ secrets.CONNECTED_APP_CLIENT_ID }}" \
+        -Dclient.secret="${{ secrets.CONNECTED_APP_CLIENT_SECRET }}" \
+        -Denvironment=TEST
