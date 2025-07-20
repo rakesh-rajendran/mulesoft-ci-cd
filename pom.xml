@@ -12,14 +12,66 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-		<app.runtime>4.9.7:23e-java17</app.runtime>
+		<app.runtime>4.9.7</app.runtime>
 		<mule.maven.plugin.version>4.1.1</mule.maven.plugin.version>
 		<munit.version>2.3.12</munit.version>
 		<http.version>1.7.3</http.version>
 		<socket.version>1.2.2</socket.version>
 		<secure.config.module.version>1.2.5</secure.config.module.version>
 		<java.version>17</java.version>
+		
+		<!-- Default environment -->
+		<environment>DEV</environment>
+		
+		<!-- Environment-specific application names -->
+		<app.name.dev>${project.artifactId}-dev</app.name.dev>
+		<app.name.test>${project.artifactId}-test</app.name.test>
+		<app.name.prod>${project.artifactId}</app.name.prod>
 	</properties>
+
+	<profiles>
+		<profile>
+			<id>dev</id>
+			<activation>
+				<property>
+					<name>environment</name>
+					<value>DEV</value>
+				</property>
+			</activation>
+			<properties>
+				<cloudhub.application.name>${app.name.dev}</cloudhub.application.name>
+				<cloudhub.environment>DEV</cloudhub.environment>
+			</properties>
+		</profile>
+		
+		<profile>
+			<id>test</id>
+			<activation>
+				<property>
+					<name>environment</name>
+					<value>TEST</value>
+				</property>
+			</activation>
+			<properties>
+				<cloudhub.application.name>${app.name.test}</cloudhub.application.name>
+				<cloudhub.environment>TEST</cloudhub.environment>
+			</properties>
+		</profile>
+		
+		<profile>
+			<id>prod</id>
+			<activation>
+				<property>
+					<name>environment</name>
+					<value>PROD</value>
+				</property>
+			</activation>
+			<properties>
+				<cloudhub.application.name>${app.name.prod}</cloudhub.application.name>
+				<cloudhub.environment>PROD</cloudhub.environment>
+			</properties>
+		</profile>
+	</profiles>
 
 	<build>
 		<plugins>
@@ -35,22 +87,19 @@
 				<extensions>true</extensions>
 				<configuration>
 					<classifier>mule-application</classifier>
-					<cloudhub2Deployment>
+					<cloudhubDeployment>
 						<uri>https://anypoint.mulesoft.com</uri>
-						<provider>MC</provider>
-						<environment>${environment}</environment>
-						<target>Cloudhub-US-East-2</target>
-						<server>Repository</server>
-						<applicationName>${project.artifactId}</applicationName>
 						<muleVersion>${app.runtime}</muleVersion>
-						<javaVersion>${java.version}</javaVersion>
-						<releaseChannel>EDGE</releaseChannel>
-						<replicas>1</replicas>
-						<vCores>0.1</vCores>
-						<deploymentSettings>
+						<server>Repository</server>
+						<applicationName>${cloudhub.application.name}</applicationName>
+						<environment>${cloudhub.environment}</environment>
+						<region>us-east-2</region>
+						<workers>1</workers>
+						<workerType>MICRO</workerType>
+						<properties>
 							<generateDefaultPublicUrl>true</generateDefaultPublicUrl>
-						</deploymentSettings>
-					</cloudhub2Deployment>
+						</properties>
+					</cloudhubDeployment>
 				</configuration>
 			</plugin>
 		</plugins>
@@ -112,4 +161,6 @@
 			<layout>default</layout>
 		</repository>
 	</distributionManagement>
+
+
 </project>
