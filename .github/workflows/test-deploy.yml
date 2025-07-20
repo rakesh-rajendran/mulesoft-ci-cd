@@ -21,19 +21,34 @@ jobs:
         distribution: "zulu"
         java-version: 8
 
-    - name: Download artifact from Exchange
+    - name: Extract group ID from POM
+      id: pom-info
       run: |
-        # Get the commit hash to identify the artifact
-        commitHash=$(git rev-parse --short "${{ github.event.pull_request.head.sha }}")
-        echo "Looking for artifact with commit hash: $commitHash"
-        
-        # Download from Exchange using Maven
-        mvn dependency:copy \
-        -Dartifact=${{ secrets.GROUP_ID }}:${{ github.event.repository.name }}:${{ github.event.pull_request.head.ref }} \
-        -DoutputDirectory=target \
-        --settings .maven/settings.xml \
-        -Dclient.id="${{ secrets.CONNECTED_APP_CLIENT_ID }}" \
-        -Dclient.secret="${{ secrets.CONNECTED_APP_CLIENT_SECRET }}"
+        # Extract groupId from pom.xml
+        groupId=$(mvn help:evaluate -Dexpression=project.groupId -q -DforceStdout)
+        echo "group-id=$groupId" >> $GITHUB_OUTPUT
+        echo "Found group ID: $groupId"
+
+    - name: Download artifact from Exchange or rebuild
+      run: |
+        # Try to download from Exchange using extracted group ID
+        if [ -n "${{ steps.pom-info.outputs.group-id }}" ]; then
+          echo "Attempting to download from Exchange..."
+          if mvn dependency:copy \
+          -Dartifact=${{ steps.pom-info.outputs.group-id }}:${{ github.event.repository.name }}:LATEST \
+          -DoutputDirectory=target \
+          --settings .maven/settings.xml \
+          -Dclient.id="${{ secrets.CONNECTED_APP_CLIENT_ID }}" \
+          -Dclient.secret="${{ secrets.CONNECTED_APP_CLIENT_SECRET }}"; then
+            echo "Successfully downloaded from Exchange"
+          else
+            echo "Failed to download from Exchange, rebuilding..."
+            mvn clean compile test package -DskipMunitTests
+          fi
+        else
+          echo "Could not extract group ID, rebuilding application..."
+          mvn clean compile test package -DskipMunitTests
+        fi
 
     - name: Deploy to CloudHub TEST
       run: |
