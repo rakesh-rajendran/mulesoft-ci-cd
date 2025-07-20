@@ -87,19 +87,22 @@
 				<extensions>true</extensions>
 				<configuration>
 					<classifier>mule-application</classifier>
-					<cloudhubDeployment>
+					<cloudhub2Deployment>
 						<uri>https://anypoint.mulesoft.com</uri>
-						<muleVersion>${app.runtime}</muleVersion>
+						<provider>MC</provider>
+						<environment>${cloudhub.environment}</environment>
+						<target>Cloudhub-US-East-2</target>
 						<server>Repository</server>
 						<applicationName>${cloudhub.application.name}</applicationName>
-						<environment>${cloudhub.environment}</environment>
-						<region>us-east-2</region>
-						<workers>1</workers>
-						<workerType>MICRO</workerType>
-						<properties>
+						<muleVersion>${app.runtime}</muleVersion>
+						<javaVersion>${java.version}</javaVersion>
+						<releaseChannel>EDGE</releaseChannel>
+						<replicas>1</replicas>
+						<vCores>0.1</vCores>
+						<deploymentSettings>
 							<generateDefaultPublicUrl>true</generateDefaultPublicUrl>
-						</properties>
-					</cloudhubDeployment>
+						</deploymentSettings>
+					</cloudhub2Deployment>
 				</configuration>
 			</plugin>
 		</plugins>
